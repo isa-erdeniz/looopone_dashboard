@@ -1,3 +1,5 @@
+from decouple import config
+from pathlib import Path
 """
 Django settings for looopone_config project.
 
@@ -11,6 +13,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,12 +22,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-d9#a*9-@ay1#hw0qgn*xry-k)-h7r)h!+k4@xltw@!!!2y=t-^'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
+SECRET_KEY = config('SECRET_KEY')
+DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = []
 
 
@@ -125,3 +124,4 @@ TEMPLATES = [
         },
     },
 ]
+GOOGLE_MAPS_API_KEY = config('GOOGLE_MAPS_API_KEY')

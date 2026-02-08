@@ -7,6 +7,7 @@ from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from datetime import timedelta
 from .models import Container, CollectionRoute, Alert, Municipality
+from django.conf import settings
 
 
 def login_view(request):
@@ -84,7 +85,12 @@ def dashboard(request):
 
 
 @login_required
+
 def map_view(request):
+    context = {
+        'google_maps_api_key': settings.GOOGLE_MAPS_API_KEY
+    }
+    return render(request, 'map.html', context)
     """Harita Görünümü"""
     
     # Filtreler
@@ -217,7 +223,15 @@ def resolve_alert(request, alert_id):
 
 @login_required
 def api_containers_json(request):
-    """Konteyner verilerini JSON olarak döndür (Harita için)"""
+    containers = [
+        {"id": 101, "lat": 38.3894, "lng": 27.0461, "fill": 85, "address": "İnciraltı Mah. No:12"},
+        {"id": 102, "lat": 38.3912, "lng": 27.0520, "fill": 30, "address": "Teleferik Meydan"},
+        {"id": 103, "lat": 38.3850, "lng": 27.0410, "fill": 92, "address": "Mithatpaşa Cad. Durak"},
+        {"id": 104, "lat": 38.3930, "lng": 27.0480, "fill": 15, "address": "Ata Cad. Giriş"},
+        {"id": 105, "lat": 38.3880, "lng": 27.0550, "fill": 75, "address": "Balçova Belediyesi Önü"},
+        {"id": 106, "lat": 38.3950, "lng": 27.0430, "fill": 45, "address": "Ekonomi Üniversitesi Yanı"},
+    ]
+    return JsonResponse(containers, safe=False)
     
     containers = Container.objects.filter(status='active').values(
         'id', 'container_id', 'container_type', 'fill_level',
@@ -241,3 +255,15 @@ def api_stats_json(request):
     }
     
     return JsonResponse(stats)
+
+from django.http import JsonResponse
+
+def api_containers_json(request):
+    # Belediye sunumu için Balçova koordinatlarında demo veriler
+    containers = [
+        {"id": 1, "lat": 38.3894, "lng": 27.0461, "fill": 85, "address": "İnciraltı Mah. No:12"},
+        {"id": 2, "lat": 38.3912, "lng": 27.0520, "fill": 30, "address": "Teleferik Meydan"},
+        {"id": 3, "lat": 38.3850, "lng": 27.0410, "fill": 92, "address": "Mithatpaşa Cad. Durak"},
+        {"id": 4, "lat": 38.3930, "lng": 27.0480, "fill": 15, "address": "Ata Cad. Giriş"},
+    ]
+    return JsonResponse(containers, safe=False)

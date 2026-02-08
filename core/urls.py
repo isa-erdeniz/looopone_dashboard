@@ -25,3 +25,4 @@ urlpatterns = [
     path('api/containers/', views.api_containers_json, name='api_containers'),
     path('api/stats/', views.api_stats_json, name='api_stats'),
 ]
+path('api/containers/', views.api_containers_json, name='api_containers'),

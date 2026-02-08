@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Canlı Harita - Looopone{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    #map { height: 90vh; width: 100%; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-3">
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div id="map"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Balçova Merkez
+        var map = L.map('map').setView([38.3894, 27.0461], 15);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Konteyner verilerini çek
+        fetch('/api/containers/')
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(container => {
+                    var color = container.fill > 80 ? "#ef4444" : "#10b981";
+                    
+                    var circle = L.circle([container.lat, container.lng], {
+                        color: color,
+                        fillColor: color,
+                        fillOpacity: 0.7,
+                        radius: 40
+                    }).addTo(map);
+
+                    circle.bindPopup(`
+                        <div style="font-family: sans-serif;">
+                            <h6 style="margin:0; font-weight:bold;">Konteyner #${container.id}</h6>
+                            <p style="margin:5px 0;">${container.address}</p>
+                            <div style="background:#eee; border-radius:5px; height:10px; width:100%;">
+                                <div style="background:${color}; height:100%; width:${container.fill}%; border-radius:5px;"></div>
+                            </div>
+                            <small>Doluluk: %${container.fill}</small>
+                        </div>
+                    `);
+                });
+            });
+    });
+</script>
+{% endblock %}
