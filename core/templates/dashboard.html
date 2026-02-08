@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow">
+                <div class="card-body text-center">
+                    <h1 class="display-4 text-success">🌿 Looopone Dashboard</h1>
+                    <p class="lead">Akıllı Çöp Yönetim Sistemi Paneline Hoş Geldiniz.</p>
+                    <hr>
+                    <div class="row mt-4">
+                        <div class="col-md-4">
+                            <div class="alert alert-info">
+                                <h5>Toplam Konteyner</h5>
+                                <h3>142</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="alert alert-warning">
+                                <h5>Ortalama Doluluk</h5>
+                                <h3>%64</h3>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="alert alert-danger">
+                                <h5>Kritik Uyarı</h5>
+                                <h3>18</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="/admin" class="btn btn-success btn-lg mt-3">Yönetim Paneline Git</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
