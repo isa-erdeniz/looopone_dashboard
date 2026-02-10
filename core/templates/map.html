@@ -23,75 +23,60 @@
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAlqqY_7xi8nLbXt-COj73W7KUwEpBr5Dg&callback=initMap" async defer></script>
 
 <script>
+    let map;
+    let markers = []; // Mevcut daireleri takip etmek için
+
     function initMap() {
-        const map = new google.maps.Map(document.getElementById("map"), {
+        map = new google.maps.Map(document.getElementById("map"), {
             center: { lat: 38.3894, lng: 27.0461 },
             zoom: 13
         });
 
-        const bounds = new google.maps.LatLngBounds();
+        // Verileri ilk kez çek ve ardından her 30 saniyede bir tekrarla
+        updateData();
+        setInterval(updateData, 30000); 
+    }
 
+    function updateData() {
         fetch('/api/containers/', { cache: "no-store" })
             .then(response => response.json())
             .then(data => {
-                if (data.length === 0) return;
+                // Önce eski daireleri haritadan temizle
+                markers.forEach(m => m.setMap(null));
+                markers = [];
+
+                const bounds = new google.maps.LatLngBounds();
 
                 data.forEach(container => {
                     const lat = parseFloat(container.lat);
                     const lng = parseFloat(container.lng);
-                    if (isNaN(lat) || isNaN(lng)) return;
+                    
+                    let color = container.fill >= 80 ? "#ef4444" : (container.fill >= 50 ? "#f59e0b" : "#10b981");
 
-                    // --- ÜÇ RENKLİ SİSTEM BAŞLANGICI ---
-                    let color;
-                    if (container.fill >= 80) {
-                        color = "#ef4444"; // Kırmızı (Tehlike)
-                    } else if (container.fill >= 50) {
-                        color = "#f59e0b"; // Sarı (Dikkat)
-                    } else {
-                        color = "#10b981"; // Yeşil (Güvenli)
-                    }
-                    // --- ÜÇ RENKLİ SİSTEM BİTİŞİ ---
-
-                    const position = { lat: lat, lng: lng };
-
-                    // Görsel: Dış yuvarlak (Yarı saydam)
-                    const containerCircle = new google.maps.Circle({
+                    const circle = new google.maps.Circle({
                         strokeColor: color,
                         strokeOpacity: 0.8,
                         strokeWeight: 2,
                         fillColor: color,
                         fillOpacity: 0.35,
                         map: map,
-                        center: position,
+                        center: { lat: lat, lng: lng },
                         radius: 30
                     });
 
-                    // Bilgi Penceresi
-                    const infoWindow = new google.maps.InfoWindow({
-                        content: `
-                            <div class="info-box">
-                                <strong>Konteyner #${container.id}</strong><br>
-                                <small>${container.address || 'Adres Belirtilmemiş'}</small>
-                                <div class="status-bar-bg">
-                                    <div style="background:${color}; height:100%; width:${container.fill}%; border-radius:5px;"></div>
-                                </div>
-                                <strong>Doluluk: %${container.fill}</strong>
-                            </div>`
-                    });
-
-                    containerCircle.addListener("click", () => {
-                        infoWindow.setPosition(containerCircle.getCenter());
+                    // Tıklama olayını tekrar bağla
+                    circle.addListener("click", () => {
+                        const infoWindow = new google.maps.InfoWindow({
+                            content: `<strong>Konteyner #${container.id}</strong><br>Doluluk: %${container.fill}`
+                        });
+                        infoWindow.setPosition(circle.getCenter());
                         infoWindow.open(map);
                     });
 
-                    bounds.extend(position);
+                    markers.push(circle);
+                    bounds.extend({ lat: lat, lng: lng });
                 });
-
-                if (data.length > 0) {
-                    map.fitBounds(bounds);
-                }
-            })
-            .catch(error => console.error("Veri hatası:", error));
+            });
     }
 </script>
 {% endblock %}
