@@ -24,15 +24,27 @@
 
 <script>
     let map;
-    let markers = []; // Mevcut daireleri takip etmek için
+    let markers = []; 
+    let directionsService;
+    let directionsRenderer;
 
     function initMap() {
+        // Harita objesini oluştur
         map = new google.maps.Map(document.getElementById("map"), {
             center: { lat: 38.3894, lng: 27.0461 },
             zoom: 13
         });
+        
+        // Rota servislerini başlat
+        directionsService = new google.maps.DirectionsService();
+        directionsRenderer = new google.maps.DirectionsRenderer({
+            suppressMarkers: true, 
+            polylineOptions: { strokeColor: "#2563eb", strokeWeight: 5 }
+        });
+        
+        directionsRenderer.setMap(map); 
 
-        // Verileri ilk kez çek ve ardından her 30 saniyede bir tekrarla
+        // Verileri çekmeye başla
         updateData();
         setInterval(updateData, 30000); 
     }
@@ -41,7 +53,7 @@
         fetch('/api/containers/', { cache: "no-store" })
             .then(response => response.json())
             .then(data => {
-                // Önce eski daireleri haritadan temizle
+                // Eskileri temizle
                 markers.forEach(m => m.setMap(null));
                 markers = [];
 
@@ -50,6 +62,7 @@
                 data.forEach(container => {
                     const lat = parseFloat(container.lat);
                     const lng = parseFloat(container.lng);
+                    if (isNaN(lat) || isNaN(lng)) return;
                     
                     let color = container.fill >= 80 ? "#ef4444" : (container.fill >= 50 ? "#f59e0b" : "#10b981");
 
@@ -64,7 +77,6 @@
                         radius: 30
                     });
 
-                    // Tıklama olayını tekrar bağla
                     circle.addListener("click", () => {
                         const infoWindow = new google.maps.InfoWindow({
                             content: `<strong>Konteyner #${container.id}</strong><br>Doluluk: %${container.fill}`
@@ -76,7 +88,43 @@
                     markers.push(circle);
                     bounds.extend({ lat: lat, lng: lng });
                 });
-            });
+
+                // Rota çizimini tetikle
+                drawRoute(data);
+            })
+            .catch(error => console.error("Veri hatası:", error));
+    }
+
+    function drawRoute(data) {
+        // Şimdilik testi kolaylaştırmak için sınırı 10'a çektim
+        const waypoints = data
+            .filter(c => c.fill >= 0) 
+            .map(c => ({
+                location: new google.maps.LatLng(parseFloat(c.lat), parseFloat(c.lng)),
+                stopover: true
+            }));
+
+        if (waypoints.length < 2) {
+            directionsRenderer.setDirections({routes: []});
+            return;
+        }
+
+        const origin = waypoints.shift().location;
+        const destination = waypoints.pop().location;
+
+        directionsService.route({
+            origin: origin,
+            destination: destination,
+            waypoints: waypoints,
+            optimizeWaypoints: true,
+            travelMode: google.maps.TravelMode.DRIVING,
+        }, (result, status) => {
+            if (status === google.maps.DirectionsStatus.OK) {
+                directionsRenderer.setDirections(result);
+            } else {
+                console.error("Rota çizilemedi: " + status);
+            }
+        });
     }
 </script>
 {% endblock %}
