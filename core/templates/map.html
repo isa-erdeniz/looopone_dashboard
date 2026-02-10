@@ -29,50 +29,53 @@
             zoom: 13
         });
 
-        // Haritayı tüm konteynerleri kapsayacak şekilde genişletmek için "bounds" objesi
         const bounds = new google.maps.LatLngBounds();
 
         fetch('/api/containers/', { cache: "no-store" })
             .then(response => response.json())
             .then(data => {
-                console.log("Gelen Veriler:", data); // F12 Konsolunda verileri görebilirsin
-
-                if (data.length === 0) {
-                    console.log("Veritabanı boş, veri gelmedi.");
-                    return;
-                }
+                if (data.length === 0) return;
 
                 data.forEach(container => {
-                    // Sayıları zorla ondalık sayıya çeviriyoruz (Hata önleyici)
                     const lat = parseFloat(container.lat);
                     const lng = parseFloat(container.lng);
-
-                    // Eğer koordinatlar geçerli bir sayı değilse bu konteyneri atla
                     if (isNaN(lat) || isNaN(lng)) return;
 
-                    const color = container.fill > 80 ? "#ef4444" : "#10b981";
+                    // --- ÜÇ RENKLİ SİSTEM BAŞLANGICI ---
+                    let color;
+                    if (container.fill >= 80) {
+                        color = "#ef4444"; // Kırmızı (Tehlike)
+                    } else if (container.fill >= 50) {
+                        color = "#f59e0b"; // Sarı (Dikkat)
+                    } else {
+                        color = "#10b981"; // Yeşil (Güvenli)
+                    }
+                    // --- ÜÇ RENKLİ SİSTEM BİTİŞİ ---
+
                     const position = { lat: lat, lng: lng };
 
+                    // Görsel: Dış yuvarlak (Yarı saydam)
                     const containerCircle = new google.maps.Circle({
                         strokeColor: color,
                         strokeOpacity: 0.8,
                         strokeWeight: 2,
                         fillColor: color,
-                        fillOpacity: 0.4,
+                        fillOpacity: 0.35,
                         map: map,
                         center: position,
-                        radius: 70 
+                        radius: 30
                     });
 
+                    // Bilgi Penceresi
                     const infoWindow = new google.maps.InfoWindow({
                         content: `
                             <div class="info-box">
                                 <strong>Konteyner #${container.id}</strong><br>
-                                <small>${container.address || 'Rastgele Adres'}</small>
+                                <small>${container.address || 'Adres Belirtilmemiş'}</small>
                                 <div class="status-bar-bg">
                                     <div style="background:${color}; height:100%; width:${container.fill}%; border-radius:5px;"></div>
                                 </div>
-                                <span>Doluluk: %${container.fill}</span>
+                                <strong>Doluluk: %${container.fill}</strong>
                             </div>`
                     });
 
@@ -81,11 +84,9 @@
                         infoWindow.open(map);
                     });
 
-                    // Harita sınırlarını bu konteynere göre genişlet
                     bounds.extend(position);
                 });
 
-                // Tüm konteynerler eklendikten sonra haritayı onlara odakla
                 if (data.length > 0) {
                     map.fitBounds(bounds);
                 }

@@ -256,14 +256,22 @@ def api_stats_json(request):
     
     return JsonResponse(stats)
 
-from django.http import JsonResponse
-
+@login_required
 def api_containers_json(request):
-    # Belediye sunumu için Balçova koordinatlarında demo veriler
-    containers = [
-        {"id": 1, "lat": 38.3894, "lng": 27.0461, "fill": 85, "address": "İnciraltı Mah. No:12"},
-        {"id": 2, "lat": 38.3912, "lng": 27.0520, "fill": 30, "address": "Teleferik Meydan"},
-        {"id": 3, "lat": 38.3850, "lng": 27.0410, "fill": 92, "address": "Mithatpaşa Cad. Durak"},
-        {"id": 4, "lat": 38.3930, "lng": 27.0480, "fill": 15, "address": "Ata Cad. Giriş"},
-    ]
-    return JsonResponse(containers, safe=False)
+    """Veritabanındaki tüm aktif konteynerleri haritaya gönderir"""
+    containers = Container.objects.filter(status='active').values(
+        'id', 'fill_level', 'latitude', 'longitude', 'address'
+    )
+    
+    # Harita formatına uygun hale getirme
+    data = []
+    for c in containers:
+        data.append({
+            "id": c['id'],
+            "lat": float(c['latitude']),
+            "lng": float(c['longitude']),
+            "fill": c['fill_level'],
+            "address": c['address']
+        })
+    
+    return JsonResponse(data, safe=False)
