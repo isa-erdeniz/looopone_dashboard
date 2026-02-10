@@ -2,9 +2,10 @@
 {% block title %}Canlı Harita - Looopone{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-    #map { height: 90vh; width: 100%; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    #map { height: 90vh; width: 100%; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background-color: #f8f9fa; }
+    .info-box { color: #333; padding: 5px; font-family: sans-serif; min-width: 150px; }
+    .status-bar-bg { background: #eee; height: 10px; border-radius: 5px; width: 100%; margin: 5px 0; }
 </style>
 {% endblock %}
 
@@ -19,42 +20,77 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAlqqY_7xi8nLbXt-COj73W7KUwEpBr5Dg&callback=initMap" async defer></script>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Balçova Merkez
-        var map = L.map('map').setView([38.3894, 27.0461], 15);
+    function initMap() {
+        const map = new google.maps.Map(document.getElementById("map"), {
+            center: { lat: 38.3894, lng: 27.0461 },
+            zoom: 13
+        });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+        // Haritayı tüm konteynerleri kapsayacak şekilde genişletmek için "bounds" objesi
+        const bounds = new google.maps.LatLngBounds();
 
-        // Konteyner verilerini çek
-        fetch('/api/containers/')
+        fetch('/api/containers/', { cache: "no-store" })
             .then(response => response.json())
             .then(data => {
-                data.forEach(container => {
-                    var color = container.fill > 80 ? "#ef4444" : "#10b981";
-                    
-                    var circle = L.circle([container.lat, container.lng], {
-                        color: color,
-                        fillColor: color,
-                        fillOpacity: 0.7,
-                        radius: 40
-                    }).addTo(map);
+                console.log("Gelen Veriler:", data); // F12 Konsolunda verileri görebilirsin
 
-                    circle.bindPopup(`
-                        <div style="font-family: sans-serif;">
-                            <h6 style="margin:0; font-weight:bold;">Konteyner #${container.id}</h6>
-                            <p style="margin:5px 0;">${container.address}</p>
-                            <div style="background:#eee; border-radius:5px; height:10px; width:100%;">
-                                <div style="background:${color}; height:100%; width:${container.fill}%; border-radius:5px;"></div>
-                            </div>
-                            <small>Doluluk: %${container.fill}</small>
-                        </div>
-                    `);
+                if (data.length === 0) {
+                    console.log("Veritabanı boş, veri gelmedi.");
+                    return;
+                }
+
+                data.forEach(container => {
+                    // Sayıları zorla ondalık sayıya çeviriyoruz (Hata önleyici)
+                    const lat = parseFloat(container.lat);
+                    const lng = parseFloat(container.lng);
+
+                    // Eğer koordinatlar geçerli bir sayı değilse bu konteyneri atla
+                    if (isNaN(lat) || isNaN(lng)) return;
+
+                    const color = container.fill > 80 ? "#ef4444" : "#10b981";
+                    const position = { lat: lat, lng: lng };
+
+                    const containerCircle = new google.maps.Circle({
+                        strokeColor: color,
+                        strokeOpacity: 0.8,
+                        strokeWeight: 2,
+                        fillColor: color,
+                        fillOpacity: 0.4,
+                        map: map,
+                        center: position,
+                        radius: 70 
+                    });
+
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `
+                            <div class="info-box">
+                                <strong>Konteyner #${container.id}</strong><br>
+                                <small>${container.address || 'Rastgele Adres'}</small>
+                                <div class="status-bar-bg">
+                                    <div style="background:${color}; height:100%; width:${container.fill}%; border-radius:5px;"></div>
+                                </div>
+                                <span>Doluluk: %${container.fill}</span>
+                            </div>`
+                    });
+
+                    containerCircle.addListener("click", () => {
+                        infoWindow.setPosition(containerCircle.getCenter());
+                        infoWindow.open(map);
+                    });
+
+                    // Harita sınırlarını bu konteynere göre genişlet
+                    bounds.extend(position);
                 });
-            });
-    });
+
+                // Tüm konteynerler eklendikten sonra haritayı onlara odakla
+                if (data.length > 0) {
+                    map.fitBounds(bounds);
+                }
+            })
+            .catch(error => console.error("Veri hatası:", error));
+    }
 </script>
 {% endblock %}
