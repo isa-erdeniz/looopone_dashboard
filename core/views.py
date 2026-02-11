@@ -232,6 +232,51 @@ def api_containers_json(request):
         {"id": 106, "lat": 38.3950, "lng": 27.0430, "fill": 45, "address": "Ekonomi Üniversitesi Yanı"},
     ]
     return JsonResponse(containers, safe=False)
+@login_required
+def dashboard(request):
+    """Ana Dashboard"""
+    
+    # İstatistikler
+    total_containers = Container.objects.filter(status='active').count()
+    full_containers = Container.objects.filter(fill_level__gte=80, status='active').count()
+    avg_fill_level = Container.objects.filter(status='active').aggregate(Avg('fill_level'))['fill_level__avg'] or 0
+    
+    # Uyarılar
+    active_alerts = Alert.objects.filter(is_resolved=False).order_by('-priority', '-created_at')[:10]
+    critical_alerts_count = Alert.objects.filter(is_resolved=False, priority='critical').count()
+    
+    # Bugünkü rotalar
+    today = timezone.now().date()
+    today_routes = CollectionRoute.objects.filter(
+        scheduled_date__date=today
+    ).order_by('scheduled_date')
+    
+    # Son 7 gün toplanma sayıları
+    last_week = timezone.now() - timedelta(days=7)
+    completed_routes = CollectionRoute.objects.filter(
+        completed_at__gte=last_week,
+        status='completed'
+    ).count()
+    
+    # Dikkat gerektiren konteynerler
+    attention_needed = Container.objects.filter(
+        Q(fill_level__gte=70) | 
+        Q(battery_level__lt=20) | 
+        Q(status__in=['maintenance', 'damaged'])
+    ).order_by('-fill_level')[:5]
+    
+    context = {
+        'total_containers': total_containers,
+        'full_containers': full_containers,
+        'avg_fill_level': round(avg_fill_level, 1),
+        'active_alerts': active_alerts,
+        'critical_alerts_count': critical_alerts_count,
+        'today_routes': today_routes,
+        'completed_routes': completed_routes,
+        'attention_needed': attention_needed,
+    }
+    
+    return render(request, 'dashboard.html', context)
     
     containers = Container.objects.filter(status='active').values(
         'id', 'container_id', 'container_type', 'fill_level',

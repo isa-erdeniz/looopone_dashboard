@@ -2,36 +2,77 @@
 {% block content %}
 <div class="container mt-5">
     <div class="row">
-        <div class="col-md-12">
-            <div class="card shadow">
-                <div class="card-body text-center">
-                    <h1 class="display-4 text-success">🌿 Looopone Dashboard</h1>
-                    <p class="lead">Akıllı Çöp Yönetim Sistemi Paneline Hoş Geldiniz.</p>
-                    <hr>
-                    <div class="row mt-4">
-                        <div class="col-md-4">
-                            <div class="alert alert-info">
-                                <h5>Toplam Konteyner</h5>
-                                <h3>142</h3>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="alert alert-warning">
-                                <h5>Ortalama Doluluk</h5>
-                                <h3>%64</h3>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="alert alert-danger">
-                                <h5>Kritik Uyarı</h5>
-                                <h3>18</h3>
-                            </div>
-                        </div>
+        <div class="col-md-12 text-center">
+            <h1 class="display-4 text-success">🌿 Looopone Dashboard</h1>
+            <p class="lead">Gerçek Zamanlı Akıllı Yönetim Paneli</p>
+            <hr>
+            
+            <div class="row mt-4">
+                <div class="col-md-4">
+                    <div class="alert alert-info border-0 shadow-sm">
+                        <h5>Toplam Konteyner</h5>
+                        <h3>{{ total_containers }}</h3>
                     </div>
-                    <a href="/admin" class="btn btn-success btn-lg mt-3">Yönetim Paneline Git</a>
+                </div>
+                <div class="col-md-4">
+                    <div class="alert alert-warning border-0 shadow-sm">
+                        <h5>Ortalama Doluluk</h5>
+                        <h3>%{{ avg_fill_level }}</h3>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="alert alert-danger border-0 shadow-sm">
+                        <h5>Kritik Uyarı</h5>
+                        <h3>{{ critical_alerts_count }}</h3>
+                    </div>
                 </div>
             </div>
+
+            <div class="row justify-content-center mt-4">
+                <div class="col-md-6">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-white font-weight-bold">📊 Doluluk Dağılımı</div>
+                        <div class="card-body" style="height: 300px;">
+                            <canvas id="fillLevelChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <a href="/admin" class="btn btn-success btn-lg mt-3">Yönetim Paneline Git</a>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    window.onload = function() {
+        const ctx = document.getElementById('fillLevelChart');
+        if (!ctx) return;
+
+        const full = parseInt("{{ full_containers|default:0 }}");
+        const total = parseInt("{{ total_containers|default:0 }}");
+        const normal = Math.max(0, total - full);
+
+        if (total > 0) {
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Dolu (>%80)', 'Normal'],
+                    datasets: [{
+                        data: [full, normal],
+                        backgroundColor: ['#ef4444', '#10b981'],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+    };
+</script>
 {% endblock %}
