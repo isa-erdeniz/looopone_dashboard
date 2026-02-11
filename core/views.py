@@ -6,34 +6,100 @@ from django.http import JsonResponse
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
 from datetime import timedelta
-from .models import Container, CollectionRoute, Alert, Municipality
 from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+from .models import Container, CollectionRoute, Alert, Municipality
 
-
-def login_view(request):
-    """Giriş Sayfası"""
-    if request.user.is_authenticated:
-        return redirect('dashboard')
-    
+# 1. VATANDAŞ BİLDİRİM API
+@csrf_exempt
+def report_issue_api(request):
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+        # 1. Veriyi farklı kaynaklardan (POST veya JSON) gelme ihtimaline karşı alıyoruz
+        issue_type = request.POST.get('issue_type') or request.POST.get('container_type')
+        lat = request.POST.get('lat')
+        lng = request.POST.get('lng')
+        description = request.POST.get('description', 'Vatandaş Bildirimi')
+
+        # 2. Eğer formdan gelmediyse varsayılan bir değer ata
+        if not issue_type:
+            issue_type = 'HALK_PAZARI'
+
+        # 3. Koordinat kontrolü (Boşsa Balçova'ya koy)
+        try:
+            final_lat = float(lat) if lat else 38.3894
+            final_lng = float(lng) if lng else 27.0461
+        except (ValueError, TypeError):
+            final_lat, final_lng = 38.3894, 27.0461
+
+        # 4. Veritabanına Kayıt
+        Container.objects.create(
+            container_type=issue_type,
+            latitude=final_lat,
+            longitude=final_lng,
+            address=description,
+            fill_level=100,
+            status='active'
+        )
         
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            messages.success(request, f'Hoş geldiniz, {user.get_full_name() or user.username}!')
-            return redirect('dashboard')
-        else:
-            messages.error(request, 'Kullanıcı adı veya şifre hatalı!')
+        print(f"✅ Yeni Bildirim Kaydedildi: {issue_type} at {final_lat}, {final_lng}") # Terminalden takip etmen için
+        return JsonResponse({'status': 'success'})
+
+    return JsonResponse({'status': 'error', 'message': 'Sadece POST isteği kabul edilir'}, status=400)
+
+# 2. HARİTA İÇİN CANLI VERİ (TEK YETKİLİ FONKSİYON)
+@login_required
+def api_containers_json(request):
+    containers = Container.objects.filter(status='active').values(
+        'id', 'fill_level', 'latitude', 'longitude', 'address', 'container_type'
+    )
+    data = []
+    for c in containers:
+        data.append({
+            "id": c['id'],
+            "lat": float(c['latitude']) if c['latitude'] else 0,
+            "lng": float(c['longitude']) if c['longitude'] else 0,
+            "fill": c['fill_level'],
+            "address": c['address'],
+            "type": c['container_type'] # İkonlar için bu satır kritik!
+        })
+    return JsonResponse(data, safe=False)
+
+# 3. SAYFA GÖRÜNÜMLERİ
+def report_issue(request):
+    return render(request, 'report_issue.html')
+
+@login_required
+def dashboard(request):
+    total_containers = Container.objects.filter(status='active').count()
+    full_containers = Container.objects.filter(fill_level__gte=80, status='active').count()
+    avg_fill = Container.objects.filter(status='active').aggregate(Avg('fill_level'))['fill_level__avg'] or 0
+    active_alerts = Alert.objects.filter(is_resolved=False).order_by('-priority')[:10]
     
+    context = {
+        'total_containers': total_containers,
+        'full_containers': full_containers,
+        'avg_fill_level': round(avg_fill, 1),
+        'active_alerts': active_alerts,
+    }
+    return render(request, 'dashboard.html', context)
+
+@login_required
+def map_view(request):
+    context = {'google_maps_api_key': settings.GOOGLE_MAPS_API_KEY}
+    return render(request, 'map.html', context)
+
+# 4. GİRİŞ / ÇIKIŞ
+def login_view(request):
+    if request.method == 'POST':
+        u, p = request.POST.get('username'), request.POST.get('password')
+        user = authenticate(request, username=u, password=p)
+        if user:
+            login(request, user)
+            return redirect('dashboard')
     return render(request, 'login.html')
 
-
 def logout_view(request):
-    """Çıkış"""
     logout(request)
-    messages.info(request, 'Başarıyla çıkış yaptınız.')
     return redirect('login')
 
 
@@ -320,3 +386,5 @@ def api_containers_json(request):
         })
     
     return JsonResponse(data, safe=False)
+def report_issue(request):
+    return render(request, 'report_issue.html')

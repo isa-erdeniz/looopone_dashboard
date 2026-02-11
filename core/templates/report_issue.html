@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4 mb-5">
+    <div class="card shadow border-0" style="border-radius: 20px;">
+        <div class="card-body">
+            <h2 class="text-success text-center mb-4"><i class="fas fa-city"></i> Kent Yönetim Merkezi</h2>
+            <p class="text-center text-muted small">Sorun bildirmek için formu doldurun. Konumunuz ve fotoğrafınız ekiplerimize anında iletilecektir.</p>
+            <hr>
+            
+            <form id="reportForm">
+                <div class="mb-3">
+                    <label class="form-label font-weight-bold"><i class="fas fa-camera"></i> Sorun Fotoğrafı</label>
+                    <input type="file" class="form-control" id="issueImage" accept="image/*" capture="camera" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label font-weight-bold"><i class="fas fa-list"></i> Bildirim Kategorisi</label>
+                    <select class="form-select" id="issueType" required>
+                        <option value="" selected disabled>Seçiniz...</option>
+                        <option value="HALK_PAZARI">Halk Pazarı Atık/Yoğunluk</option>
+                        <option value="MARKET_SEVKIYAT">Market Sevkiyatı (Palet/Kasa İşgali)</option>
+                        <option value="TRAFIK_ENGEL">Hatalı Park / Sevkiyat Aracı Engeli</option>
+                        <option value="MOLOZ">Kaçak Moloz/İnşaat Atığı</option>
+                        <option value="ROAD">Yol Hasarı / Çukur</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label font-weight-bold"><i class="fas fa-comment-dots"></i> Kısa Açıklama</label>
+                    <textarea class="form-control" id="description" rows="2" placeholder="Örn: Market paletleri kaldırımı kapatıyor..."></textarea>
+                </div>
+
+                <div class="mb-4 text-center">
+                    <button type="button" class="btn btn-outline-primary btn-sm mb-2" onclick="getLocation()">
+                        <i class="fas fa-crosshairs"></i> Konumumu Otomatik Belirle
+                    </button>
+                    <div id="locationStatus" class="alert alert-light border py-2 small mb-0">
+                        <i class="fas fa-map-pin"></i> Konum bilgisi bekleniyor...
+                    </div>
+                </div>
+
+                <input type="hidden" id="lat" name="latitude">
+                <input type="hidden" id="lng" name="longitude">
+
+                <button type="submit" class="btn btn-success btn-lg w-100 shadow-lg py-3">
+                    <strong>SİSTEME GÖNDER</strong>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// 1. Konum Alma Fonksiyonu (Eksik olan kısım buydu)
+function getLocation() {
+    const status = document.getElementById('locationStatus');
+    if (navigator.geolocation) {
+        status.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Konum alınıyor...';
+        navigator.geolocation.getCurrentPosition((pos) => {
+            document.getElementById('lat').value = pos.coords.latitude;
+            document.getElementById('lng').value = pos.coords.longitude;
+            status.innerHTML = "✅ Konum Doğrulandı: " + pos.coords.latitude.toFixed(4) + ", " + pos.coords.longitude.toFixed(4);
+            status.className = "alert alert-success border py-2 small mb-0";
+        }, (err) => {
+            status.innerHTML = "❌ Konum izni reddedildi. Manuel koordinat atanıyor...";
+            status.className = "alert alert-warning border py-2 small mb-0";
+            // Eğer konum alınamazsa Balçova merkez koordinatlarını ata (Test kolaylığı için)
+            document.getElementById('lat').value = "38.3894";
+            document.getElementById('lng').value = "27.0461";
+        });
+    } else {
+        status.innerHTML = "❌ Tarayıcı GPS desteklemiyor.";
+    }
+}
+
+// 2. Form Gönderme İşlemi
+document.getElementById('reportForm').onsubmit = function(e) {
+    e.preventDefault();
+    
+    const lat = document.getElementById('lat').value;
+    const lng = document.getElementById('lng').value;
+    const issueType = document.getElementById('issueType').value;
+    const desc = document.getElementById('description').value;
+
+    if(!lat || !lng) {
+        alert("Lütfen önce konumunuzu belirleyin!");
+        return;
+    }
+
+    let formData = new FormData();
+    formData.append('issue_type', issueType);
+    formData.append('lat', lat);
+    formData.append('lng', lng);
+    formData.append('description', desc);
+
+    fetch('/report-issue-api/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Sunucu hatası');
+        return response.json();
+    })
+    .then(data => {
+        alert("✅ Bildiriminiz başarıyla iletildi! Şimdi haritaya yönlendiriliyorsunuz.");
+        window.location.href = "/map/"; 
+    })
+    .catch(error => {
+        console.error("Hata:", error);
+        alert("❌ Veri gönderilemedi. Lütfen terminalden serverın açık olup olmadığını kontrol edin.");
+    });
+};
+</script>
+
+{% endblock %}

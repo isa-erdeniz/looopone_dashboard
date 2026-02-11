@@ -49,23 +49,65 @@
         setInterval(updateData, 30000); 
     }
 
-    function updateData() {
-        fetch('/api/containers/', { cache: "no-store" })
-            .then(response => response.json())
-            .then(data => {
-                // Eskileri temizle
-                markers.forEach(m => m.setMap(null));
-                markers = [];
+function updateData() {
+    fetch('/api/containers/', { cache: "no-store" })
+        .then(response => response.json())
+        .then(data => {
+            // 1. Önce haritadaki eski marker ve daireleri temizle
+            markers.forEach(m => m.setMap(null));
+            markers = [];
 
-                const bounds = new google.maps.LatLngBounds();
+            // 2. İkon tanımlarını ve zaman kontrollerini yap (Döngüden ÖNCE gelmeli)
+            const icons = {
+                'HALK_PAZARI': 'http://maps.google.com/mapfiles/kml/shapes/shopping_cart.png', 
+                'MARKET_SEVKIYAT': 'http://maps.google.com/mapfiles/kml/shapes/truck.png', 
+                'MOLOZ': 'http://maps.google.com/mapfiles/kml/shapes/caution.png', 
+                'ROAD': 'http://maps.google.com/mapfiles/kml/shapes/info_circle.png'
+            };
 
-                data.forEach(container => {
-                    const lat = parseFloat(container.lat);
-                    const lng = parseFloat(container.lng);
-                    if (isNaN(lat) || isNaN(lng)) return;
+            const currentHour = new Date().getHours();
+            const isDeliveryHour = (currentHour >= 8 && currentHour <= 11);
+
+            // 3. Veri Döngüsü (Her bir konteyner/bildirim için işlem yap)
+            data.forEach(container => {
+                const lat = parseFloat(container.lat);
+                const lng = parseFloat(container.lng);
+                
+                // Koordinat yoksa bu kaydı atla
+                if (isNaN(lat) || isNaN(lng)) return;
+
+                // Veritabanından gelen 'tip' bilgisini yakala (Büyük harfe çevirerek garantile)
+                const type = (container.type || container.container_type || container.point_type || "").toUpperCase();
+                let iconUrl = icons[type] || null;
+
+                if (iconUrl) {
+                    // ÖZEL BİLDİRİMLER (Pazar, Market vb.) İÇİN MARKER OLUŞTUR
+                    const marker = new google.maps.Marker({
+                        position: { lat: lat, lng: lng },
+                        map: map,
+                        icon: { url: iconUrl, scaledSize: new google.maps.Size(35, 35) },
+                        title: container.address || type
+                    });
+
+                    // Zıplama Efektleri
+                    if (type === 'MARKET_SEVKIYAT' && isDeliveryHour) {
+                        marker.setAnimation(google.maps.Animation.BOUNCE);
+                    }
+                    if (type === 'HALK_PAZARI' && currentHour >= 17) {
+                        marker.setAnimation(google.maps.Animation.BOUNCE);
+                    }
+
+                    // Bilgi Penceresi
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `<strong>${type}</strong><br>${container.address || 'Adres bilgisi yok'}`
+                    });
+                    marker.addListener("click", () => infoWindow.open(map, marker));
                     
-                    let color = container.fill >= 80 ? "#ef4444" : (container.fill >= 50 ? "#f59e0b" : "#10b981");
+                    markers.push(marker);
 
+                } else {
+                    // NORMAL ÇÖP KONTEYNERLERİ İÇİN DAİRE OLUŞTUR
+                    let color = container.fill >= 80 ? "#ef4444" : (container.fill >= 50 ? "#f59e0b" : "#10b981");
                     const circle = new google.maps.Circle({
                         strokeColor: color,
                         strokeOpacity: 0.8,
@@ -77,23 +119,24 @@
                         radius: 30
                     });
 
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `<strong>Konteyner #${container.id}</strong><br>Doluluk: %${container.fill}`
+                    });
                     circle.addListener("click", () => {
-                        const infoWindow = new google.maps.InfoWindow({
-                            content: `<strong>Konteyner #${container.id}</strong><br>Doluluk: %${container.fill}`
-                        });
                         infoWindow.setPosition(circle.getCenter());
                         infoWindow.open(map);
                     });
 
                     markers.push(circle);
-                    bounds.extend({ lat: lat, lng: lng });
-                });
+                }
+            });
 
-                // Rota çizimini tetikle
-                drawRoute(data);
-            })
-            .catch(error => console.error("Veri hatası:", error));
-    }
+            // 4. Rota Çizimini Güncelle
+            drawRoute(data);
+        })
+        .catch(error => console.error("Veri çekme hatası:", error));
+}
+
 
     function drawRoute(data) {
         // Şimdilik testi kolaylaştırmak için sınırı 10'a çektim

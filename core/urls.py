@@ -24,5 +24,8 @@ urlpatterns = [
     # API Endpoints
     path('api/containers/', views.api_containers_json, name='api_containers'),
     path('api/stats/', views.api_stats_json, name='api_stats'),
+
+    # ... mevcut url'lerin ...
+    path('report-issue/', views.report_issue, name='report_issue'),
 ]
 path('api/containers/', views.api_containers_json, name='api_containers'),
