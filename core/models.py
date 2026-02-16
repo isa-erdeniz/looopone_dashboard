@@ -43,6 +43,8 @@ class Container(models.Model):
     battery_level = models.IntegerField(default=100, verbose_name='Batarya (%)')
     
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Oluşturulma')
+    # Vatandaş bildirimi için: HALK_PAZARI, MOLOZ, ROAD vb. (haritada ikon için)
+    report_type = models.CharField(max_length=50, blank=True, null=True, verbose_name='Bildirim tipi')
     
     class Meta:
         verbose_name = 'Konteyner'

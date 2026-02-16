@@ -24,29 +24,170 @@
 
 <script>
     let map;
-    let markers = []; 
+    let markers = [];
+    let balcovaPolygonOverlays = [];
+    let balcovaBoundaryGeojson = null;
     let directionsService;
     let directionsRenderer;
+    const BALCOVA_FALLBACK = { latMin: 38.370, latMax: 38.420, lngMin: 27.020, lngMax: 27.080 };
+
+    async function fetchBalcovaBoundary() {
+        const url = 'https://nominatim.openstreetmap.org/search?q=Bal%C3%A7ova,+%C4%B0zmir,+Turkey&format=json&polygon_geojson=1&limit=1';
+        try {
+            const response = await fetch(url, { headers: { 'User-Agent': 'LoooponeApp/1.0' } });
+            const data = await response.json();
+            if (data.length > 0 && data[0].geojson) return data[0].geojson;
+        } catch (e) { console.warn('Balçova sınır API hatası, fallback kullanılıyor:', e); }
+        return null;
+    }
+
+    function isPointInPolygon(lat, lng, ring) {
+        const la = parseFloat(lat), ln = parseFloat(lng);
+        let inside = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const xi = ring[i][1], yi = ring[i][0];
+            const xj = ring[j][1], yj = ring[j][0];
+            const intersect = ((yi > ln) !== (yj > ln)) && (la < (xj - xi) * (ln - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+        return inside;
+    }
+
+    function isInBalcovaBounds(lat, lng) {
+        const la = parseFloat(lat), ln = parseFloat(lng);
+        if (isNaN(la) || isNaN(ln)) return false;
+        if (balcovaBoundaryGeojson) {
+            const g = balcovaBoundaryGeojson;
+            if (g.type === 'Polygon' && g.coordinates && g.coordinates[0])
+                return isPointInPolygon(la, ln, g.coordinates[0]);
+            if (g.type === 'MultiPolygon' && g.coordinates)
+                return g.coordinates.some(ringList => ringList[0] && isPointInPolygon(la, ln, ringList[0]));
+        }
+        return la >= BALCOVA_FALLBACK.latMin && la <= BALCOVA_FALLBACK.latMax && ln >= BALCOVA_FALLBACK.lngMin && ln <= BALCOVA_FALLBACK.lngMax;
+    }
+
+    function ringToGooglePath(ring) {
+        return ring.map(c => ({ lat: c[1], lng: c[0] }));
+    }
+
+    function drawBalcovaBoundary(geojson) {
+        balcovaPolygonOverlays.forEach(p => p.setMap(null));
+        balcovaPolygonOverlays = [];
+        const strokeColor = '#059669';
+        const fillColor = '#0080ff';
+        const style = {
+            strokeColor, strokeOpacity: 0.8, strokeWeight: 2,
+            fillColor, fillOpacity: 0.1
+        };
+        if (geojson && geojson.type === 'Polygon' && geojson.coordinates && geojson.coordinates[0]) {
+            const poly = new google.maps.Polygon({
+                paths: ringToGooglePath(geojson.coordinates[0]),
+                ...style,
+                map: map
+            });
+            balcovaPolygonOverlays.push(poly);
+        } else if (geojson && geojson.type === 'MultiPolygon' && geojson.coordinates) {
+            geojson.coordinates.forEach(ringList => {
+                if (ringList[0]) {
+                    const poly = new google.maps.Polygon({
+                        paths: ringToGooglePath(ringList[0]),
+                        ...style,
+                        map: map
+                    });
+                    balcovaPolygonOverlays.push(poly);
+                }
+            });
+        } else {
+            const fallbackPath = [
+                { lat: BALCOVA_FALLBACK.latMin, lng: BALCOVA_FALLBACK.lngMin },
+                { lat: BALCOVA_FALLBACK.latMax, lng: BALCOVA_FALLBACK.lngMin },
+                { lat: BALCOVA_FALLBACK.latMax, lng: BALCOVA_FALLBACK.lngMax },
+                { lat: BALCOVA_FALLBACK.latMin, lng: BALCOVA_FALLBACK.lngMax }
+            ];
+            balcovaPolygonOverlays.push(new google.maps.Polygon({ paths: fallbackPath, ...style, map: map }));
+        }
+    }
 
     function initMap() {
-        // Harita objesini oluştur
         map = new google.maps.Map(document.getElementById("map"), {
             center: { lat: 38.3894, lng: 27.0461 },
             zoom: 13
         });
-        
-        // Rota servislerini başlat
+
         directionsService = new google.maps.DirectionsService();
         directionsRenderer = new google.maps.DirectionsRenderer({
-            suppressMarkers: true, 
+            suppressMarkers: true,
             polylineOptions: { strokeColor: "#2563eb", strokeWeight: 5 }
         });
-        
-        directionsRenderer.setMap(map); 
+        directionsRenderer.setMap(map);
 
-        // Verileri çekmeye başla
-        updateData();
-        setInterval(updateData, 30000); 
+        (async function loadBalcovaAndData() {
+            balcovaBoundaryGeojson = await fetchBalcovaBoundary();
+            drawBalcovaBoundary(balcovaBoundaryGeojson);
+            addMarkerFromQueryParams();
+            updateData();
+            setInterval(updateData, 30000);
+
+            map.addListener('click', function(ev) {
+                const lat = ev.latLng.lat(), lng = ev.latLng.lng();
+                const inside = isInBalcovaBounds(lat, lng);
+                const marker = new google.maps.Marker({
+                    position: { lat: lat, lng: lng },
+                    map: map,
+                    icon: inside
+                        ? { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#10b981', fillOpacity: 1, strokeColor: '#059669', strokeWeight: 2 }
+                        : { path: google.maps.SymbolPath.CIRCLE, scale: 14, fillColor: '#9ca3af', fillOpacity: 1, strokeColor: '#6b7280', strokeWeight: 2 }
+                });
+                if (inside) {
+                    const info = new google.maps.InfoWindow({
+                        content: '<strong>Bu noktada sorun bildir</strong><br><a href="/report-issue/?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng) + '">Sorun bildir formuna git</a>'
+                    });
+                    marker.addListener('click', () => info.open(map, marker));
+                    info.open(map, marker);
+                    markers.push(marker);
+                } else {
+                    const warn = new google.maps.InfoWindow({
+                        content: '⚠️ Sadece Balçova ilçesi sınırları içinden sorun bildirebilirsiniz.'
+                    });
+                    warn.open(map, marker);
+                    setTimeout(function() { marker.setMap(null); warn.close(); }, 3000);
+                }
+            });
+        })();
+    }
+
+    function addMarkerFromQueryParams() {
+        const params = new URLSearchParams(window.location.search);
+        const lat = parseFloat(params.get('new_lat'));
+        const lng = parseFloat(params.get('new_lng'));
+        const type = (params.get('new_type') || '').toUpperCase();
+        const desc = params.get('new_desc') || 'Yeni bildirim';
+        if (isNaN(lat) || isNaN(lng) || !map) return;
+        const icons = {
+            'HALK_PAZARI': 'http://maps.google.com/mapfiles/kml/shapes/shopping_cart.png',
+            'MARKET_SEVKIYAT': 'http://maps.google.com/mapfiles/kml/shapes/truck.png',
+            'TRAFIK_ENGEL': 'http://maps.google.com/mapfiles/kml/shapes/parking_lot_maps.png',
+            'MOLOZ': 'http://maps.google.com/mapfiles/kml/shapes/caution.png',
+            'ROAD': 'http://maps.google.com/mapfiles/kml/shapes/info_circle.png'
+        };
+        const valid = isInBalcovaBounds(lat, lng);
+        const marker = new google.maps.Marker({
+            position: { lat: lat, lng: lng },
+            map: map,
+            icon: valid
+                ? { url: icons[type] || 'http://maps.google.com/mapfiles/kml/shapes/info_circle.png', scaledSize: new google.maps.Size(40, 40) }
+                : { path: google.maps.SymbolPath.CIRCLE, scale: 12, fillColor: '#9ca3af', fillOpacity: 1, strokeColor: '#6b7280', strokeWeight: 2 },
+            title: valid ? desc : 'Geçersiz konum (Balçova dışı)'
+        });
+        const infoWindow = new google.maps.InfoWindow({
+            content: valid
+                ? '<strong>Yeni bildirim</strong><br>' + (type ? type.replace(/_/g, ' ') : '') + '<br>' + desc
+                : '<strong>Geçersiz konum</strong><br>Sadece Balçova ilçesi sınırları içinden sorun bildirilebilir.'
+        });
+        marker.addListener('click', () => infoWindow.open(map, marker));
+        markers.push(marker);
+        map.panTo({ lat: lat, lng: lng });
+        if (history.replaceState) history.replaceState({}, document.title, window.location.pathname);
     }
 
 function updateData() {
@@ -61,6 +202,7 @@ function updateData() {
             const icons = {
                 'HALK_PAZARI': 'http://maps.google.com/mapfiles/kml/shapes/shopping_cart.png', 
                 'MARKET_SEVKIYAT': 'http://maps.google.com/mapfiles/kml/shapes/truck.png', 
+                'TRAFIK_ENGEL': 'http://maps.google.com/mapfiles/kml/shapes/parking_lot_maps.png',
                 'MOLOZ': 'http://maps.google.com/mapfiles/kml/shapes/caution.png', 
                 'ROAD': 'http://maps.google.com/mapfiles/kml/shapes/info_circle.png'
             };

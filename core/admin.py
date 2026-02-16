@@ -1,6 +1,5 @@
 from django.contrib import admin
 from .models import Container, CollectionRoute, Alert, Municipality
-from .models import Container
 
 
 @admin.register(Container)

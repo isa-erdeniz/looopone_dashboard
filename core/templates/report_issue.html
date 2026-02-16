@@ -37,12 +37,15 @@
                     <div id="locationStatus" class="alert alert-light border py-2 small mb-0">
                         <i class="fas fa-map-pin"></i> Konum bilgisi bekleniyor...
                     </div>
+                    <div id="balcovaWarning" class="alert alert-warning py-2 small mb-0 mt-2 d-none" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i> Sadece Balçova ilçesi sınırları içinden sorun bildirebilirsiniz.
+                    </div>
                 </div>
 
                 <input type="hidden" id="lat" name="latitude">
                 <input type="hidden" id="lng" name="longitude">
 
-                <button type="submit" class="btn btn-success btn-lg w-100 shadow-lg py-3">
+                <button type="submit" id="submitReportBtn" class="btn btn-success btn-lg w-100 shadow-lg py-3" disabled>
                     <strong>SİSTEME GÖNDER</strong>
                 </button>
             </form>
@@ -51,9 +54,67 @@
 </div>
 
 <script>
-// 1. Konum Alma Fonksiyonu (Eksik olan kısım buydu)
+const BALCOVA_FALLBACK = { latMin: 38.370, latMax: 38.420, lngMin: 27.020, lngMax: 27.080 };
+let balcovaBoundaryGeojson = null;
+
+async function fetchBalcovaBoundary() {
+    const url = 'https://nominatim.openstreetmap.org/search?q=Bal%C3%A7ova,+%C4%B0zmir,+Turkey&format=json&polygon_geojson=1&limit=1';
+    try {
+        const response = await fetch(url, { headers: { 'User-Agent': 'LoooponeApp/1.0' } });
+        const data = await response.json();
+        if (data.length > 0 && data[0].geojson) return data[0].geojson;
+    } catch (e) { console.warn('Balçova sınır API hatası:', e); }
+    return null;
+}
+
+function isPointInPolygon(lat, lng, ring) {
+    const la = parseFloat(lat), ln = parseFloat(lng);
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][1], yi = ring[i][0];
+        const xj = ring[j][1], yj = ring[j][0];
+        const intersect = ((yi > ln) !== (yj > ln)) && (la < (xj - xi) * (ln - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+function isInBalcova(lat, lng) {
+    const la = parseFloat(lat), ln = parseFloat(lng);
+    if (isNaN(la) || isNaN(ln)) return false;
+    if (balcovaBoundaryGeojson) {
+        const g = balcovaBoundaryGeojson;
+        if (g.type === 'Polygon' && g.coordinates && g.coordinates[0])
+            return isPointInPolygon(la, ln, g.coordinates[0]);
+        if (g.type === 'MultiPolygon' && g.coordinates)
+            return g.coordinates.some(ringList => ringList[0] && isPointInPolygon(la, ln, ringList[0]));
+    }
+    return la >= BALCOVA_FALLBACK.latMin && la <= BALCOVA_FALLBACK.latMax && ln >= BALCOVA_FALLBACK.lngMin && ln <= BALCOVA_FALLBACK.lngMax;
+}
+
+function checkBalcovaBounds() {
+    const lat = document.getElementById('lat').value;
+    const lng = document.getElementById('lng').value;
+    const btn = document.getElementById('submitReportBtn');
+    const warning = document.getElementById('balcovaWarning');
+    if (!lat || !lng) {
+        btn.disabled = true;
+        warning.classList.add('d-none');
+        return;
+    }
+    if (isInBalcova(lat, lng)) {
+        btn.disabled = false;
+        warning.classList.add('d-none');
+    } else {
+        btn.disabled = true;
+        warning.classList.remove('d-none');
+    }
+}
+
 function getLocation() {
     const status = document.getElementById('locationStatus');
+    const warning = document.getElementById('balcovaWarning');
+    warning.classList.add('d-none');
     if (navigator.geolocation) {
         status.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Konum alınıyor...';
         navigator.geolocation.getCurrentPosition((pos) => {
@@ -61,33 +122,36 @@ function getLocation() {
             document.getElementById('lng').value = pos.coords.longitude;
             status.innerHTML = "✅ Konum Doğrulandı: " + pos.coords.latitude.toFixed(4) + ", " + pos.coords.longitude.toFixed(4);
             status.className = "alert alert-success border py-2 small mb-0";
+            checkBalcovaBounds();
         }, (err) => {
-            status.innerHTML = "❌ Konum izni reddedildi. Manuel koordinat atanıyor...";
+            status.innerHTML = "❌ Konum izni reddedildi. Varsayılan olarak Balçova merkez atandı.";
             status.className = "alert alert-warning border py-2 small mb-0";
-            // Eğer konum alınamazsa Balçova merkez koordinatlarını ata (Test kolaylığı için)
             document.getElementById('lat').value = "38.3894";
             document.getElementById('lng').value = "27.0461";
+            checkBalcovaBounds();
         });
     } else {
         status.innerHTML = "❌ Tarayıcı GPS desteklemiyor.";
     }
 }
 
-// 2. Form Gönderme İşlemi
 document.getElementById('reportForm').onsubmit = function(e) {
     e.preventDefault();
-    
     const lat = document.getElementById('lat').value;
     const lng = document.getElementById('lng').value;
     const issueType = document.getElementById('issueType').value;
     const desc = document.getElementById('description').value;
 
-    if(!lat || !lng) {
+    if (!lat || !lng) {
         alert("Lütfen önce konumunuzu belirleyin!");
         return;
     }
+    if (!isInBalcova(lat, lng)) {
+        alert("Sadece Balçova ilçesi sınırları içinden sorun bildirebilirsiniz.");
+        return;
+    }
 
-    let formData = new FormData();
+    const formData = new FormData();
     formData.append('issue_type', issueType);
     formData.append('lat', lat);
     formData.append('lng', lng);
@@ -97,22 +161,44 @@ document.getElementById('reportForm').onsubmit = function(e) {
         method: 'POST',
         body: formData,
         headers: {
-            'X-CSRFToken': '{{ csrf_token }}'
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Accept': 'application/json'
         }
     })
     .then(response => {
-        if (!response.ok) throw new Error('Sunucu hatası');
-        return response.json();
+        const isJson = response.headers.get('content-type') && response.headers.get('content-type').includes('application/json');
+        return isJson ? response.json().then(data => ({ ok: response.ok, status: response.status, data })) : { ok: response.ok, status: response.status, data: {} };
     })
-    .then(data => {
-        alert("✅ Bildiriminiz başarıyla iletildi! Şimdi haritaya yönlendiriliyorsunuz.");
-        window.location.href = "/map/"; 
+    .then(({ ok, status, data }) => {
+        if (status === 403 && data.error) {
+            alert(data.error);
+            return;
+        }
+        if (!ok) throw new Error(data.message || 'Sunucu hatası: ' + status);
+        if (data.status !== 'success') throw new Error(data.message || data.error || 'Kayıt başarısız');
+        alert("✅ Bildiriminiz başarıyla iletildi! Haritada işaretlenecek.");
+        window.location.href = "/map/?new_lat=" + encodeURIComponent(lat) + "&new_lng=" + encodeURIComponent(lng) + "&new_type=" + encodeURIComponent(issueType) + "&new_desc=" + encodeURIComponent(desc || '');
     })
     .catch(error => {
         console.error("Hata:", error);
-        alert("❌ Veri gönderilemedi. Lütfen terminalden serverın açık olup olmadığını kontrol edin.");
+        alert("❌ Veri gönderilemedi. Sunucunun açık olduğundan ve /report-issue-api/ adresinin tanımlı olduğundan emin olun.");
     });
 };
+
+(function initBoundaryAndQuery() {
+    fetchBalcovaBoundary().then(function(g) { balcovaBoundaryGeojson = g; applyQueryParams(); });
+    function applyQueryParams() {
+        const params = new URLSearchParams(window.location.search);
+        const lat = params.get('lat'), lng = params.get('lng');
+        if (lat && lng) {
+            document.getElementById('lat').value = lat;
+            document.getElementById('lng').value = lng;
+            document.getElementById('locationStatus').innerHTML = '✅ Konum (haritadan): ' + lat + ', ' + lng;
+            document.getElementById('locationStatus').className = 'alert alert-success border py-2 small mb-0';
+            checkBalcovaBounds();
+        }
+    }
+})();
 </script>
 
 {% endblock %}

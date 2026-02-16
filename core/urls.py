@@ -9,6 +9,7 @@ urlpatterns = [
     # Dashboard
     path('dashboard/', views.dashboard, name='dashboard'),
     path('map/', views.map_view, name='map'),
+    path('analytics/', views.analytics_view, name='analytics'),
     
     # Containers
     path('containers/', views.containers_list, name='containers_list'),
@@ -24,8 +25,7 @@ urlpatterns = [
     # API Endpoints
     path('api/containers/', views.api_containers_json, name='api_containers'),
     path('api/stats/', views.api_stats_json, name='api_stats'),
+    path('report-issue-api/', views.report_issue_api, name='report_issue_api'),
 
-    # ... mevcut url'lerin ...
     path('report-issue/', views.report_issue, name='report_issue'),
 ]
-path('api/containers/', views.api_containers_json, name='api_containers'),

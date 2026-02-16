@@ -1,0 +1,64 @@
+/*
+ * Admin sidebar (yan menü) açık mod.
+ * Koyu temada bile sidebar açık renklerde görünür.
+ */
+#nav-sidebar {
+    background-color: #fff !important;
+    border-right-color: #e8e8e8 !important;
+}
+
+.toggle-nav-sidebar {
+    background-color: #fff !important;
+    color: #417893 !important;
+    border-right-color: #e8e8e8 !important;
+}
+
+.toggle-nav-sidebar:hover,
+.toggle-nav-sidebar:focus {
+    background-color: #f8f8f8 !important;
+}
+
+#nav-sidebar a:link,
+#nav-sidebar a:visited,
+#nav-sidebar .module th,
+#nav-sidebar .module caption {
+    color: #417893 !important;
+}
+
+#nav-sidebar a:hover,
+#nav-sidebar a:focus {
+    color: #003366 !important;
+}
+
+#nav-sidebar .current-model {
+    background: #ffc !important;
+}
+
+#nav-sidebar .current-app .section:link,
+#nav-sidebar .current-app .section:visited {
+    color: #333 !important;
+}
+
+#nav-filter {
+    background-color: #f8f8f8 !important;
+    color: #333 !important;
+    border-color: #ccc !important;
+}
+
+#nav-filter::placeholder {
+    color: #666;
+}
+
+#nav-filter:focus {
+    border-color: #666 !important;
+}
+
+/*
+ * Admin tablolarında satır hover
+ */
+#result_list tbody tr:hover,
+.module table tbody tr:hover,
+#result_list tbody tr:hover td,
+.module table tbody tr:hover td {
+    background-color: var(--darkened-bg) !important;
+}

@@ -52,6 +52,16 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'looopone_config.urls'
 
+# Cache (Balçova sınır verisi 24 saat)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'OPTIONS': {'MAX_ENTRIES': 100}
+    }
+}
+BALCOVA_BOUNDARY_CACHE_KEY = 'balcova_boundary_geojson'
+BALCOVA_BOUNDARY_CACHE_TTL = 86400  # 24 saat
+
 
 
 

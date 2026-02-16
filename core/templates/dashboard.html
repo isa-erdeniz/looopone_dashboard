@@ -13,22 +13,40 @@
             <hr>
             
             <div class="row mt-4">
-                <div class="col-md-4">
+                <div class="col-md-2">
                     <div class="alert alert-info border-0 shadow-sm">
                         <h5>Toplam Konteyner</h5>
                         <h3>{{ total_containers }}</h3>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-2">
                     <div class="alert alert-warning border-0 shadow-sm">
                         <h5>Ortalama Doluluk</h5>
                         <h3>%{{ avg_fill_level }}</h3>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-2">
                     <div class="alert alert-danger border-0 shadow-sm">
                         <h5>Kritik Uyarı</h5>
                         <h3>{{ critical_alerts_count }}</h3>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="alert alert-success border-0 shadow-sm">
+                        <h5>Toplam Kullanıcı</h5>
+                        <h3>{{ total_users }}</h3>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="alert alert-secondary border-0 shadow-sm">
+                        <h5>Toplam Araç</h5>
+                        <h3>{{ total_vehicles }}</h3>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="alert alert-primary border-0 shadow-sm">
+                        <h5>Toplam Mahalle</h5>
+                        <h3>{{ total_neighborhoods }}</h3>
                     </div>
                 </div>
             </div>
@@ -78,6 +96,7 @@
                 }
             });
         }
+
     };
 </script>
 {% endblock %}
